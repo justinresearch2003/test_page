@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infrastructure</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0D1117; color: #C9D1D9; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; padding: 20px; }
+  .header { background: #161B22; border: 1px solid #BC8CFF; border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; }
+  .header h1 { font-family: "Space Grotesk", sans-serif; font-size: 22px; color: #BC8CFF; font-weight: 700; letter-spacing: -0.5px; }
+  .header .meta { color: #8B949E; font-size: 11px; margin-top: 4px; }
+  .stats-bar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { background: #161B22; border: 1px solid #21262D; border-radius: 6px; padding: 10px 16px; text-align: center; flex: 1; min-width: 90px; }
+  .stat-value { font-size: 20px; font-weight: 700; color: #58A6FF; }
+  .stat-label { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 1px; }
+  .container { display: flex; flex-direction: column; gap: 16px; }
+  .zone { border: 1px solid #21262D; border-radius: 8px; overflow: hidden; background: #0D1117; }
+  .zone-header { padding: 10px 16px; font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  .zone-count { font-size: 11px; font-weight: 400; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,0.06); }
+  .zone.owned .zone-header { background: rgba(188,140,255,0.12); color: #BC8CFF; border-bottom: 1px solid rgba(188,140,255,0.2); }
+  .zone.critical .zone-header { background: rgba(248,81,73,0.12); color: #F85149; border-bottom: 1px solid rgba(248,81,73,0.2); }
+  .zone-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .host { display: flex; align-items: flex-start; gap: 12px; padding: 6px 10px; border-radius: 4px; background: #161B22; border: 1px solid #21262D; }
+  .host:hover { border-color: #30363D; }
+  .host-ip { min-width: 160px; color: #58A6FF; font-weight: 500; white-space: nowrap; font-size: 11px; }
+  .host-service { flex: 1; color: #C9D1D9; font-size: 11px; }
+  .host-service code { background: rgba(248,81,73,0.15); color: #F85149; padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+  .host-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tag-owned { background: rgba(188,140,255,0.2); color: #BC8CFF; }
+  .creds-table, .users-table, .data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 16px; }
+  .creds-table th, .users-table th, .data-table th { text-align: left; padding: 8px 10px; background: #21262D; color: #58A6FF; font-weight: 600; border-bottom: 1px solid #30363D; }
+  .creds-table td, .users-table td, .data-table td { padding: 6px 10px; border-bottom: 1px solid #21262D; }
+  .creds-table tr:hover, .users-table tr:hover, .data-table tr:hover { background: rgba(88,166,255,0.04); }
+  .status-done { color: #3FB950; } .status-fail { color: #F85149; } .status-pending { color: #D29922; } .status-locked { color: #F85149; font-style: italic; }
+  .footer-note { text-align: center; padding: 16px; font-size: 10px; color: #484F58; border-top: 1px solid #21262D; margin-top: 16px; }
+  .markdown-content { background: #161B22; border: 1px solid #21262D; border-radius: 8px; padding: 16px; }
+  .controls { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; }
+  .btn { background: #21262D; color: #c9d1d9; border: 1px solid #30363D; padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 12px; transition: 0.2s; }
+  .btn:hover { background: #30363D; color: #58a6ff; border-color: #58a6ff; }
+  @media print {
+      @page { margin: 0; }
+      body { background: white; color: black; margin: 1.6cm; }
+      .header, .stat, .zone, .host, .markdown-content { background: white; border: 1px solid #ddd; color: black; }
+      .controls, .scanlines { display: none !important; }
+      .stat-value, .host-ip, .creds-table th, .header h1 { color: #000; }
+      .tag-owned { background: #eee; color: #000; border: 1px solid #ccc; }
+      a { text-decoration: none; color: black; }
+      .zone.owned .zone-header, .zone.critical .zone-header { background: #f0f0f0; color: #000; }
+  }
+  /* Modal Styles */
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  .modal { background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; }
+  .modal h3 { color: #C9D1D9; margin-bottom: 12px; font-family: "Space Grotesk", sans-serif; }
+  .modal p { color: #8B949E; font-size: 13px; margin-bottom: 24px; }
+  .modal-actions { display: flex; gap: 12px; justify-content: center; }
+  .btn-primary { background: #238636; color: white; border: none; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-secondary { background: #21262D; color: #C9D1D9; border: 1px solid #30363D; }
+  .btn-secondary:hover { background: #30363D; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚠️ Infrastructure</h1>
+  <div class="meta">Compromised Hosts: 192.168.10.10, 192.168.1.50, 192.168.1.5, 192.168.20.15 | Updated: 2026-02-18 19:01 UTC</div>
+</div>
+
+<div class="stats-bar"></div>
+
+<div class="container">
+
+<!-- ═══════════════ COMPROMISED HOSTS ═══════════════ -->
+<div class="zone owned">
+  <div class="zone-header">🟢 COMPROMISED HOSTS — ACTIVE SHELLS<span class="zone-count">4 HOSTS</span></div>
+  <div class="zone-body">
+    
+    <div class="host"><div class="host-ip">192.168.10.10</div><div class="host-service">WebApp</div><div class="host-tag tag-owned">Web Shell</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.1.50</div><div class="host-service">DC client</div><div class="host-tag tag-owned">NT /Authority SYSTEM</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.1.5</div><div class="host-service">DC admin</div><div class="host-tag tag-owned">Administrator</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.20.15</div><div class="host-service">DataBase</div><div class="host-tag tag-owned">Administrator</div></div>
+        
+  </div>
+</div>
+
+<!-- ═══════════════ CREDENTIALS TABLE ═══════════════ -->
+<div class="zone critical">
+  <div class="zone-header">ALL HARVESTED CREDENTIALS<span class="zone-count">3+</span></div>
+  <div class="zone-body">
+    <table class="creds-table">
+      <tr><th>Source</th><th>Credential</th><th>Target</th><th>Status</th></tr>
+      
+      <tr><td>database.php</td><td><code>just:just</code></td><td>192.168.10.10</td><td class="status-done">✓ Valid</td></tr>
+        
+      <tr><td>/.env</td><td><code>justin:P@ss!123</code></td><td>192.168.1.50</td><td class="status-done">✓ Valid</td></tr>
+        
+      <tr><td>/admin/conf/files/.secret</td><td><code>db_admin:My_@dm!n</code></td><td>192.168.20.15</td><td class="status-done">✓ Valid</td></tr>
+        
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ USERS TABLE ═══════════════ -->
+
+
+<!-- ═══════════════ ADDITIONAL DATA ═══════════════ -->
+{additional_html}
+
+<!-- ═══════════════ MARKDOWN CONTENT ═══════════════ -->
+{markdown_html}
+</div>
+</div>
+<div class="footer-note">
+  Infrastructure Assessment v6 — Generated 2026-02-18 19:29 UTC — 4 hosts compromised, compromised infrastructure mapped
+</div>
+
+<!-- Modal for Download Confirmation -->
+<div class="modal-overlay" id="downloadModal">
+  <div class="modal">
+    <h3 id="modalTitle">Download Report</h3>
+    <p id="modalDesc">Do you want to include the interactive Attack Map in the downloaded report?</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmDownload(true)">Yes, Include Map</button>
+      <button class="btn btn-secondary" onclick="confirmDownload(false)">No, Report Only</button>
+    </div>
+    <div style="margin-top: 16px;">
+        <button class="btn" style="background:transparent; border:none; color: #58a6ff; font-size: 11px;" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let promptType = 'html';
+
+function showDownloadModal(type) {
+    promptType = type || 'html';
+    const title = document.getElementById('modalTitle');
+    const desc = document.getElementById('modalDesc');
+    const container = document.getElementById('downloadModal');
+    
+    if (promptType === 'pdf') {
+        title.innerText = "Save as PDF";
+        desc.innerText = "Do you want to include the Attack Map pages in the PDF?";
+    } else {
+        title.innerText = "Download Report";
+        desc.innerText = "Do you want to include the interactive Attack Map in the file?";
+    }
+    container.style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('downloadModal').style.display = 'none';
+}
+
+function confirmDownload(includeMap) {
+    const mapParam = includeMap ? '1' : '0';
+    if (promptType === 'pdf') {
+        // Open view_report in new tab for printing
+        window.open('/view_report?include_map=' + mapParam, '_blank');
+    } else {
+        // Trigger download
+        window.location.href = '/download_report?include_map=' + mapParam;
+    }
+    closeModal();
+}
+
+// Legacy function support if cached
+function downloadReport(includeMap) {
+    confirmDownload(includeMap);
+}
+</script>
+</body>
+</html>

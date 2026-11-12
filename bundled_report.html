@@ -1,0 +1,520 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Infrastructure</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0D1117; color: #C9D1D9; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; padding: 20px; }
+  .header { background: #161B22; border: 1px solid #BC8CFF; border-radius: 8px; padding: 20px 24px; margin-bottom: 16px; }
+  .header h1 { font-family: "Space Grotesk", sans-serif; font-size: 22px; color: #BC8CFF; font-weight: 700; letter-spacing: -0.5px; }
+  .header .meta { color: #8B949E; font-size: 11px; margin-top: 4px; }
+  .stats-bar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .stat { background: #161B22; border: 1px solid #21262D; border-radius: 6px; padding: 10px 16px; text-align: center; flex: 1; min-width: 90px; }
+  .stat-value { font-size: 20px; font-weight: 700; color: #58A6FF; }
+  .stat-label { font-size: 10px; color: #8B949E; text-transform: uppercase; letter-spacing: 1px; }
+  .container { display: flex; flex-direction: column; gap: 16px; }
+  .zone { border: 1px solid #21262D; border-radius: 8px; overflow: hidden; background: #0D1117; }
+  .zone-header { padding: 10px 16px; font-weight: 600; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+  .zone-count { font-size: 11px; font-weight: 400; padding: 2px 8px; border-radius: 10px; background: rgba(255,255,255,0.06); }
+  .zone.owned .zone-header { background: rgba(188,140,255,0.12); color: #BC8CFF; border-bottom: 1px solid rgba(188,140,255,0.2); }
+  .zone.critical .zone-header { background: rgba(248,81,73,0.12); color: #F85149; border-bottom: 1px solid rgba(248,81,73,0.2); }
+  .zone-body { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .host { display: flex; align-items: flex-start; gap: 12px; padding: 6px 10px; border-radius: 4px; background: #161B22; border: 1px solid #21262D; }
+  .host:hover { border-color: #30363D; }
+  .host-ip { min-width: 160px; color: #58A6FF; font-weight: 500; white-space: nowrap; font-size: 11px; }
+  .host-service { flex: 1; color: #C9D1D9; font-size: 11px; }
+  .host-service code { background: rgba(248,81,73,0.15); color: #F85149; padding: 1px 5px; border-radius: 3px; font-size: 10px; }
+  .host-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tag-owned { background: rgba(188,140,255,0.2); color: #BC8CFF; }
+  .creds-table, .users-table, .data-table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 16px; }
+  .creds-table th, .users-table th, .data-table th { text-align: left; padding: 8px 10px; background: #21262D; color: #58A6FF; font-weight: 600; border-bottom: 1px solid #30363D; }
+  .creds-table td, .users-table td, .data-table td { padding: 6px 10px; border-bottom: 1px solid #21262D; }
+  .creds-table tr:hover, .users-table tr:hover, .data-table tr:hover { background: rgba(88,166,255,0.04); }
+  .status-done { color: #3FB950; } .status-fail { color: #F85149; } .status-pending { color: #D29922; } .status-locked { color: #F85149; font-style: italic; }
+  .footer-note { text-align: center; padding: 16px; font-size: 10px; color: #484F58; border-top: 1px solid #21262D; margin-top: 16px; }
+  .markdown-content { background: #161B22; border: 1px solid #21262D; border-radius: 8px; padding: 16px; }
+  .controls { position: absolute; top: 20px; right: 20px; display: flex; gap: 8px; }
+  .btn { background: #21262D; color: #c9d1d9; border: 1px solid #30363D; padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; font-size: 12px; transition: 0.2s; }
+  .btn:hover { background: #30363D; color: #58a6ff; border-color: #58a6ff; }
+  @media print {
+      @page { margin: 0; }
+      body { background: white; color: black; margin: 1.6cm; }
+      .header, .stat, .zone, .host, .markdown-content { background: white; border: 1px solid #ddd; color: black; }
+      .controls, .scanlines { display: none !important; }
+      .stat-value, .host-ip, .creds-table th, .header h1 { color: #000; }
+      .tag-owned { background: #eee; color: #000; border: 1px solid #ccc; }
+      a { text-decoration: none; color: black; }
+      .zone.owned .zone-header, .zone.critical .zone-header { background: #f0f0f0; color: #000; }
+  }
+  /* Modal Styles */
+  .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); backdrop-filter: blur(5px); z-index: 2000; display: none; align-items: center; justify-content: center; }
+  .modal { background: #161B22; border: 1px solid #30363D; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; }
+  .modal h3 { color: #C9D1D9; margin-bottom: 12px; font-family: "Space Grotesk", sans-serif; }
+  .modal p { color: #8B949E; font-size: 13px; margin-bottom: 24px; }
+  .modal-actions { display: flex; gap: 12px; justify-content: center; }
+  .btn-primary { background: #238636; color: white; border: none; }
+  .btn-primary:hover { background: #2ea043; }
+  .btn-secondary { background: #21262D; color: #C9D1D9; border: 1px solid #30363D; }
+  .btn-secondary:hover { background: #30363D; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚠️ Infrastructure</h1>
+  <div class="meta">Compromised Hosts: 192.168.10.10, 192.168.1.50, 192.168.1.5, 192.168.20.15 | Updated: 2026-02-18 19:01 UTC</div>
+</div>
+
+<div class="stats-bar"></div>
+
+<div class="container">
+
+<!-- ═══════════════ COMPROMISED HOSTS ═══════════════ -->
+<div class="zone owned">
+  <div class="zone-header">🟢 COMPROMISED HOSTS — ACTIVE SHELLS<span class="zone-count">4 HOSTS</span></div>
+  <div class="zone-body">
+    
+    <div class="host"><div class="host-ip">192.168.10.10</div><div class="host-service">WebApp</div><div class="host-tag tag-owned">Web Shell</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.1.50</div><div class="host-service">DC client</div><div class="host-tag tag-owned">NT /Authority SYSTEM</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.1.5</div><div class="host-service">DC admin</div><div class="host-tag tag-owned">Administrator</div></div>
+        
+    <div class="host"><div class="host-ip">192.168.20.15</div><div class="host-service">DataBase</div><div class="host-tag tag-owned">Administrator</div></div>
+        
+  </div>
+</div>
+
+<!-- ═══════════════ CREDENTIALS TABLE ═══════════════ -->
+<div class="zone critical">
+  <div class="zone-header">ALL HARVESTED CREDENTIALS<span class="zone-count">3+</span></div>
+  <div class="zone-body">
+    <table class="creds-table">
+      <tr><th>Source</th><th>Credential</th><th>Target</th><th>Status</th></tr>
+      
+      <tr><td>database.php</td><td><code>just:just</code></td><td>192.168.10.10</td><td class="status-done">✓ Valid</td></tr>
+        
+      <tr><td>/.env</td><td><code>justin:P@ss!123</code></td><td>192.168.1.50</td><td class="status-done">✓ Valid</td></tr>
+        
+      <tr><td>/admin/conf/files/.secret</td><td><code>db_admin:My_@dm!n</code></td><td>192.168.20.15</td><td class="status-done">✓ Valid</td></tr>
+        
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════ USERS TABLE ═══════════════ -->
+
+
+<!-- ═══════════════ ADDITIONAL DATA ═══════════════ -->
+{additional_html}
+
+<!-- ═══════════════ MARKDOWN CONTENT ═══════════════ -->
+{markdown_html}
+
+</div>
+</div>
+
+            <div class="map-container" style="margin-top: 40px; border: 1px solid #30363D; border-radius: 8px; overflow: hidden; height: 900px; display: flex; flex-direction: column; page-break-before: always;">
+                <div style="background: #161B22; padding: 12px 16px; border-bottom: 1px solid #30363D; font-family: 'Space Grotesk', sans-serif; font-size: 13px; color: #BC8CFF; font-weight: bold; display: flex; align-items: center; gap: 8px;">
+                    <span>⚠️ INTERACTIVE ATTACK MAP</span>
+                </div>
+                <iframe srcdoc="<!DOCTYPE html>
+<html lang=&quot;en&quot;>
+<head>
+<meta charset=&quot;UTF-8&quot;>
+<meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;>
+<title>Attack Map - Infrastructure</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#07090d;color:#b8bcc4;font-family:'DM Sans',sans-serif;overflow:hidden;height:100vh;width:100vw}
+  .scanlines{position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 4px);pointer-events:none;z-index:999}
+  #canvas-container{position:absolute;inset:0;overflow:hidden;cursor:grab}
+  #canvas-container.dragging{cursor:grabbing}
+  #graph-svg{position:absolute;top:0;left:0;width:100%;height:100%}
+  .hud-top{position:fixed;top:0;left:0;right:0;z-index:100;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(7,9,13,0.97) 0%,rgba(7,9,13,0.8) 70%,transparent 100%);pointer-events:none}
+  .hud-top>*{pointer-events:auto}
+  .hud-title{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:#bc8cff;letter-spacing:2px;text-transform:uppercase}
+  .hud-subtitle{font-family:'IBM Plex Mono',monospace;font-size:9px;color:#555;margin-top:2px}
+  .hud-stats{display:flex;gap:16px}
+  .hud-stat{text-align:center}
+  .hud-stat-val{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;color:#4dabf7}
+  .hud-stat-lbl{font-size:8px;color:#555;text-transform:uppercase;letter-spacing:1px}
+  .filter-bar{position:fixed;top:52px;left:50%;transform:translateX(-50%);z-index:100;display:flex;gap:3px;background:rgba(13,17,23,0.92);border:1px solid #21262d;border-radius:8px;padding:3px}
+  .filter-btn{background:transparent;border:1px solid transparent;color:#8b949e;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:5px 10px;border-radius:6px;cursor:pointer;letter-spacing:0.5px;transition:all .2s}
+  .filter-btn:hover{color:#c9d1d9;background:rgba(255,255,255,0.04)}
+  .filter-btn.active{background:#bc8cff22;color:#bc8cff;border-color:#bc8cff44}
+  .tooltip{position:fixed;z-index:200;background:rgba(13,17,23,0.96);border:1px solid #30363d;border-radius:6px;padding:10px 14px;max-width:400px;pointer-events:none;opacity:0;transition:opacity .15s;backdrop-filter:blur(8px);font-family:'IBM Plex Mono',monospace}
+  .tooltip-title{font-size:11px;font-weight:600;color:#c9d1d9;margin-bottom:4px}
+  .tooltip-service{font-size:9px;color:#8b949e;line-height:1.5}
+  .tooltip-tag{display:inline-block;font-size:8px;font-weight:600;padding:2px 6px;border-radius:3px;margin-top:6px;letter-spacing:0.5px}
+  .tooltip-tag.critical{background:rgba(248,81,73,0.2);color:#f85149}
+  .tooltip-tag.high{background:rgba(210,153,34,0.2);color:#d29922}
+  .tooltip-tag.owned{background:rgba(188,140,255,0.2);color:#bc8cff}
+  .tooltip-tag.medium{background:rgba(63,185,80,0.2);color:#3fb950}
+  .tooltip-tag.info{background:rgba(88,166,255,0.2);color:#58a6ff}
+  .tooltip-tag.tried{background:rgba(139,148,158,0.2);color:#8b949e;text-decoration:line-through}
+  .hud-controls{position:fixed;bottom:20px;right:20px;z-index:100;display:flex;flex-direction:column;gap:4px}
+  .hud-controls button{width:32px;height:32px;background:rgba(13,17,23,0.9);border:1px solid #21262d;border-radius:6px;color:#8b949e;font-size:16px;cursor:pointer;font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center}
+  .hud-controls button:hover{border-color:#bc8cff44;color:#bc8cff}
+  .search-box{position:fixed;top:52px;right:20px;z-index:100}
+  .search-box input{background:rgba(13,17,23,0.92);border:1px solid #21262d;border-radius:6px;padding:5px 10px;color:#c9d1d9;font-family:'IBM Plex Mono',monospace;font-size:9px;width:160px;outline:none}
+  .search-box input:focus{border-color:#bc8cff44}
+  .node-group{transition:opacity .3s}
+  .node-group.dimmed{opacity:0.08}
+  .node-group:hover{filter:brightness(1.3)}
+  @keyframes glowPulse{0%,100%{opacity:0.15}50%{opacity:0.45}}
+</style>
+</head>
+<body>
+<div class=&quot;scanlines&quot;></div>
+<div class=&quot;hud-top&quot;>
+  <div>
+    <div class=&quot;hud-title&quot;>⚠️ ATTACK CHAIN — Infrastructure</div>
+    <div class=&quot;hud-subtitle&quot;>4 hosts │ 3 creds │ Updated: 2026-02-18 19:01 UTC</div>
+  </div>
+  <div class=&quot;hud-stats&quot;>
+    <div class=&quot;hud-stat&quot;><div class=&quot;hud-stat-val&quot;>4</div><div class=&quot;hud-stat-lbl&quot;>Subnets</div></div>
+    <div class=&quot;hud-stat&quot;><div class=&quot;hud-stat-val&quot;>4</div><div class=&quot;hud-stat-lbl&quot;>Hosts</div></div>
+    <div class=&quot;hud-stat&quot;><div class=&quot;hud-stat-val&quot;>3</div><div class=&quot;hud-stat-lbl&quot;>Creds</div></div>
+  </div>
+</div>
+<div class=&quot;filter-bar&quot;>
+  <button class=&quot;filter-btn active&quot; data-filter=&quot;all&quot;>ALL</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;owned&quot;>OWNED</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;dc&quot;>DCs</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;db&quot;>DATABASES</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;windows&quot;>WINDOWS</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;linux&quot;>LINUX</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;webapp&quot;>WEB APPS</button>
+  <button class=&quot;filter-btn&quot; data-filter=&quot;creds&quot;>CREDS</button>
+</div>
+<div class=&quot;search-box&quot;><input type=&quot;text&quot; id=&quot;search&quot; placeholder=&quot;Search host...&quot;></div>
+<div id=&quot;canvas-container&quot;><svg id=&quot;graph-svg&quot;></svg></div>
+<div class=&quot;tooltip&quot; id=&quot;tooltip&quot;>
+  <div class=&quot;tooltip-title&quot; id=&quot;tt-title&quot;></div>
+  <div class=&quot;tooltip-service&quot; id=&quot;tt-service&quot;></div>
+  <span class=&quot;tooltip-tag&quot; id=&quot;tt-tag&quot;></span>
+</div>
+<div class=&quot;hud-controls&quot;>
+  <button id=&quot;zoom-in&quot;>+</button>
+  <button id=&quot;zoom-out&quot;>−</button>
+  <button id=&quot;zoom-fit&quot;>⊡</button>
+</div>
+
+<script>
+const container = document.getElementById(&quot;canvas-container&quot;);
+const svg = document.getElementById(&quot;graph-svg&quot;);
+let viewBox = {x:-50, y:-20, w:2200, h:1900};
+let isDragging = false, dragStart = {}, viewStart = {};
+
+function updateViewBox() {
+  svg.setAttribute(&quot;viewBox&quot;, `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+}
+
+// ═══════════════ DATA ═══════════════
+const ZONES = {&quot;z_192_168_10&quot;: {&quot;x&quot;: 50, &quot;y&quot;: 100, &quot;w&quot;: 550, &quot;h&quot;: 150, &quot;label&quot;: &quot;SUBNET 192.168.10.0/24&quot;, &quot;color&quot;: &quot;#58a6ff&quot;}, &quot;z_192_168_1&quot;: {&quot;x&quot;: 650, &quot;y&quot;: 100, &quot;w&quot;: 550, &quot;h&quot;: 150, &quot;label&quot;: &quot;SUBNET 192.168.1.0/24&quot;, &quot;color&quot;: &quot;#3fb950&quot;}, &quot;z_192_168_20&quot;: {&quot;x&quot;: 50, &quot;y&quot;: 300, &quot;w&quot;: 550, &quot;h&quot;: 150, &quot;label&quot;: &quot;SUBNET 192.168.20.0/24&quot;, &quot;color&quot;: &quot;#d29922&quot;}, &quot;creds&quot;: {&quot;x&quot;: 650, &quot;y&quot;: 300, &quot;w&quot;: 550, &quot;h&quot;: 150, &quot;label&quot;: &quot;HARVESTED CREDENTIALS&quot;, &quot;color&quot;: &quot;#f85149&quot;}};
+const NODES = [{&quot;ip&quot;: &quot;192.168.10.10&quot;, &quot;name&quot;: &quot;192.168.10.10&quot;, &quot;zone&quot;: &quot;z_192_168_10&quot;, &quot;sev&quot;: &quot;info&quot;, &quot;type&quot;: &quot;webapp&quot;, &quot;os&quot;: &quot;linux&quot;, &quot;ports&quot;: &quot;WebApp [Web Shell]&quot;, &quot;tags&quot;: [&quot;web shell&quot;, &quot;info&quot;, &quot;webapp&quot;, &quot;linux&quot;]}, {&quot;ip&quot;: &quot;192.168.1.50&quot;, &quot;name&quot;: &quot;192.168.1.50&quot;, &quot;zone&quot;: &quot;z_192_168_1&quot;, &quot;sev&quot;: &quot;info&quot;, &quot;type&quot;: &quot;workstation&quot;, &quot;os&quot;: &quot;windows&quot;, &quot;ports&quot;: &quot;DC client [NT /Authority SYSTEM]&quot;, &quot;tags&quot;: [&quot;nt /authority system&quot;, &quot;info&quot;, &quot;workstation&quot;, &quot;windows&quot;]}, {&quot;ip&quot;: &quot;192.168.1.5&quot;, &quot;name&quot;: &quot;192.168.1.5&quot;, &quot;zone&quot;: &quot;z_192_168_1&quot;, &quot;sev&quot;: &quot;info&quot;, &quot;type&quot;: &quot;dc&quot;, &quot;os&quot;: &quot;windows&quot;, &quot;ports&quot;: &quot;DC admin [Administrator]&quot;, &quot;tags&quot;: [&quot;administrator&quot;, &quot;info&quot;, &quot;dc&quot;, &quot;windows&quot;]}, {&quot;ip&quot;: &quot;192.168.20.15&quot;, &quot;name&quot;: &quot;192.168.20.15&quot;, &quot;zone&quot;: &quot;z_192_168_20&quot;, &quot;sev&quot;: &quot;info&quot;, &quot;type&quot;: &quot;db&quot;, &quot;os&quot;: &quot;windows&quot;, &quot;ports&quot;: &quot;DataBase [Administrator]&quot;, &quot;tags&quot;: [&quot;administrator&quot;, &quot;info&quot;, &quot;db&quot;, &quot;windows&quot;]}, {&quot;ip&quot;: &quot;CRED-0&quot;, &quot;name&quot;: &quot;database.php&quot;, &quot;zone&quot;: &quot;creds&quot;, &quot;sev&quot;: &quot;owned&quot;, &quot;type&quot;: &quot;key&quot;, &quot;os&quot;: &quot;&quot;, &quot;ports&quot;: &quot;just:just -> 192.168.10.10&quot;, &quot;tags&quot;: [&quot;creds&quot;]}, {&quot;ip&quot;: &quot;CRED-1&quot;, &quot;name&quot;: &quot;/.env&quot;, &quot;zone&quot;: &quot;creds&quot;, &quot;sev&quot;: &quot;owned&quot;, &quot;type&quot;: &quot;key&quot;, &quot;os&quot;: &quot;&quot;, &quot;ports&quot;: &quot;justin:P@ss!123 -> 192.168.1.50&quot;, &quot;tags&quot;: [&quot;creds&quot;]}, {&quot;ip&quot;: &quot;CRED-2&quot;, &quot;name&quot;: &quot;/admin/conf/files/.secret&quot;, &quot;zone&quot;: &quot;creds&quot;, &quot;sev&quot;: &quot;owned&quot;, &quot;type&quot;: &quot;key&quot;, &quot;os&quot;: &quot;&quot;, &quot;ports&quot;: &quot;db_admin:My_@dm!n -> 192.168.20.15&quot;, &quot;tags&quot;: [&quot;creds&quot;]}];
+const EDGES = [{&quot;from&quot;: &quot;192.168.1.50&quot;, &quot;to&quot;: &quot;192.168.10.10&quot;, &quot;type&quot;: &quot;owned&quot;, &quot;label&quot;: &quot;pivot&quot;}, {&quot;from&quot;: &quot;192.168.1.5&quot;, &quot;to&quot;: &quot;192.168.1.50&quot;, &quot;type&quot;: &quot;owned&quot;, &quot;label&quot;: &quot;pivot&quot;}, {&quot;from&quot;: &quot;192.168.20.15&quot;, &quot;to&quot;: &quot;192.168.1.5&quot;, &quot;type&quot;: &quot;owned&quot;, &quot;label&quot;: &quot;pivot&quot;}];
+
+// ═══════════════ LAYOUT ═══════════════
+function layoutNodes() {
+  const zoneNodes = {};
+  for (const n of NODES) {
+    if (!zoneNodes[n.zone]) zoneNodes[n.zone] = [];
+    zoneNodes[n.zone].push(n);
+  }
+  for (const [zid, nodes] of Object.entries(zoneNodes)) {
+    const z = ZONES[zid];
+    if (!z) continue;
+    
+    // Grid layout inside zone
+    const cols = 3;
+    const cellW = 120; // Approx width per node
+    const cellH = 90;
+    
+    nodes.forEach((n, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      // Center in zone
+      // Start position?
+      n.x = z.x + 60 + (col * 140);
+      n.y = z.y + 60 + (row * 90);
+    });
+  }
+}
+
+// ═══════════════ ICONS ═══════════════
+function nodeIcon(type, color, sz) {
+  const s = sz || 10;
+  const h = s * 0.7;
+  switch(type) {
+    case &quot;dc&quot;:
+      return `<rect x=&quot;${-s}&quot; y=&quot;${-h}&quot; width=&quot;${s*2}&quot; height=&quot;${h*2}&quot; rx=&quot;2&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${-s+3}&quot; y1=&quot;${-h+4}&quot; x2=&quot;${s-3}&quot; y2=&quot;${-h+4}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.8&quot;/>` +
+             `<line x1=&quot;${-s+3}&quot; y1=&quot;${-h+8}&quot; x2=&quot;${s-3}&quot; y2=&quot;${-h+8}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.8&quot;/>` +
+             `<text x=&quot;0&quot; y=&quot;${h+8}&quot; font-size=&quot;5&quot; fill=&quot;${color}&quot; text-anchor=&quot;middle&quot; font-family=&quot;IBM Plex Mono&quot;>DC</text>`;
+    case &quot;db&quot;:
+      return `<ellipse cx=&quot;0&quot; cy=&quot;${-h+3}&quot; rx=&quot;${s-2}&quot; ry=&quot;3&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${-s+2}&quot; y1=&quot;${-h+3}&quot; x2=&quot;${-s+2}&quot; y2=&quot;${h-3}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${s-2}&quot; y1=&quot;${-h+3}&quot; x2=&quot;${s-2}&quot; y2=&quot;${h-3}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<ellipse cx=&quot;0&quot; cy=&quot;${h-3}&quot; rx=&quot;${s-2}&quot; ry=&quot;3&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>`;
+    case &quot;webapp&quot;:
+      return `<rect x=&quot;${-s}&quot; y=&quot;${-h}&quot; width=&quot;${s*2}&quot; height=&quot;${h*1.6}&quot; rx=&quot;2&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${-s}&quot; y1=&quot;${-h+4}&quot; x2=&quot;${s}&quot; y2=&quot;${-h+4}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.6&quot;/>` +
+             `<circle cx=&quot;${-s+3}&quot; cy=&quot;${-h+2}&quot; r=&quot;0.8&quot; fill=&quot;${color}&quot;/>` +
+             `<circle cx=&quot;${-s+5.5}&quot; cy=&quot;${-h+2}&quot; r=&quot;0.8&quot; fill=&quot;${color}&quot;/>`;
+    case &quot;network&quot;:
+      return `<circle cx=&quot;0&quot; cy=&quot;0&quot; r=&quot;${s-2}&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;0&quot; y1=&quot;${-s+4}&quot; x2=&quot;0&quot; y2=&quot;${s-4}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.7&quot;/>` +
+             `<line x1=&quot;${-s+4}&quot; y1=&quot;0&quot; x2=&quot;${s-4}&quot; y2=&quot;0&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.7&quot;/>`;
+    case &quot;storage&quot;:
+      return `<rect x=&quot;${-s}&quot; y=&quot;${-h}&quot; width=&quot;${s*2}&quot; height=&quot;${h*2}&quot; rx=&quot;1&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${-s+2}&quot; y1=&quot;0&quot; x2=&quot;${s-2}&quot; y2=&quot;0&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.6&quot;/>` +
+             `<circle cx=&quot;${s-4}&quot; cy=&quot;${-h/2}&quot; r=&quot;1&quot; fill=&quot;${color}&quot;/>` +
+             `<circle cx=&quot;${s-4}&quot; cy=&quot;${h/2}&quot; r=&quot;1&quot; fill=&quot;${color}&quot;/>`;
+    case &quot;key&quot;:
+      return `<circle cx=&quot;0&quot; cy=&quot;-2&quot; r=&quot;4&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;0&quot; y1=&quot;2&quot; x2=&quot;0&quot; y2=&quot;8&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;0&quot; y1=&quot;6&quot; x2=&quot;3&quot; y2=&quot;6&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1&quot;/>`;
+    default:
+      return `<rect x=&quot;${-s}&quot; y=&quot;${-h}&quot; width=&quot;${s*2}&quot; height=&quot;${h*2}&quot; rx=&quot;2&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;1.2&quot;/>` +
+             `<line x1=&quot;${-s+3}&quot; y1=&quot;${-h+5}&quot; x2=&quot;${s-3}&quot; y2=&quot;${-h+5}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.6&quot;/>` +
+             `<line x1=&quot;${-s+3}&quot; y1=&quot;${-h+9}&quot; x2=&quot;${s-3}&quot; y2=&quot;${-h+9}&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.6&quot;/>`;
+  }
+}
+
+const SEV_COLORS = {
+  &quot;owned&quot;:&quot;#bc8cff&quot;,&quot;critical&quot;:&quot;#f85149&quot;,&quot;high&quot;:&quot;#d29922&quot;,
+  &quot;medium&quot;:&quot;#3fb950&quot;,&quot;info&quot;:&quot;#58a6ff&quot;,&quot;low&quot;:&quot;#484f58&quot;,&quot;tried&quot;:&quot;#555&quot;
+};
+
+// ═══════════════ RENDER ═══════════════
+function render() {
+  layoutNodes();
+  let html = '<defs>';
+  html += '<filter id=&quot;glow&quot;><feGaussianBlur stdDeviation=&quot;3&quot; result=&quot;c&quot;/><feMerge><feMergeNode in=&quot;c&quot;/><feMergeNode in=&quot;SourceGraphic&quot;/></feMerge></filter>';
+  html += '</defs>';
+
+  // Draw zones
+  for (const [zid, z] of Object.entries(ZONES)) {
+    const c = z.color || &quot;#21262d&quot;;
+    html += `<rect x=&quot;${z.x}&quot; y=&quot;${z.y}&quot; width=&quot;${z.w}&quot; height=&quot;${z.h}&quot; rx=&quot;6&quot; fill=&quot;rgba(13,17,23,0.6)&quot; stroke=&quot;${c}33&quot; stroke-width=&quot;1&quot;/>`;
+    html += `<text x=&quot;${z.x+10}&quot; y=&quot;${z.y+16}&quot; font-size=&quot;8&quot; fill=&quot;${c}&quot; font-family=&quot;IBM Plex Mono&quot; font-weight=&quot;600&quot; letter-spacing=&quot;1&quot; opacity=&quot;0.8&quot;>${z.label}</text>`;
+    // Subtle bg glow
+    html += `<rect x=&quot;${z.x}&quot; y=&quot;${z.y}&quot; width=&quot;${z.w}&quot; height=&quot;${z.h}&quot; rx=&quot;6&quot; fill=&quot;${c}&quot; opacity=&quot;0.02&quot;/>`;
+  }
+
+  // Draw edges
+  for (const e of EDGES) {
+    const fromN = NODES.find(n => n.ip === e.from);
+    const toN = NODES.find(n => n.ip === e.to);
+    if (!fromN || !toN || !fromN.x || !toN.x) continue;
+    const color = e.type === &quot;owned&quot; ? &quot;#bc8cff&quot; : e.type === &quot;auth&quot; ? &quot;#f85149&quot; : &quot;#21262d&quot;;
+    const dash = e.type === &quot;auth&quot; ? 'stroke-dasharray=&quot;4,3&quot;' : '';
+    const opacity = e.type === &quot;normal&quot; ? &quot;0.3&quot; : &quot;0.5&quot;;
+    const mx = (fromN.x + toN.x) / 2;
+    const my = (fromN.y + toN.y) / 2;
+    const cx = mx + (toN.y - fromN.y) * 0.15;
+    const cy = my - (toN.x - fromN.x) * 0.15;
+    html += `<path d=&quot;M${fromN.x},${fromN.y} Q${cx},${cy} ${toN.x},${toN.y}&quot; fill=&quot;none&quot; stroke=&quot;${color}&quot; stroke-width=&quot;0.8&quot; ${dash} opacity=&quot;${opacity}&quot;/>`;
+    // Arrowhead logic? for now just lines
+  }
+
+  // Draw nodes
+  for (const n of NODES) {
+    if (!n.x) continue;
+    const color = SEV_COLORS[n.sev] || &quot;#58a6ff&quot;;
+    const isOwned = n.sev === &quot;owned&quot;;
+    const filterAttr = isOwned ? 'filter=&quot;url(#glow)&quot;' : '';
+
+    html += `<g class=&quot;node-group&quot; data-ip=&quot;${n.ip}&quot; data-name=&quot;${n.name}&quot; data-severity=&quot;${n.sev}&quot; data-tags=&quot;${(n.tags||[]).join(',')}&quot; data-os=&quot;${n.os||''}&quot; data-zone=&quot;${n.zone}&quot; transform=&quot;translate(${n.x},${n.y})&quot; ${filterAttr}
+      onmouseover=&quot;showTip(event,'${n.ip.replace(/'/g,&quot;\'&quot;)}','${n.name.replace(/'/g,&quot;\'&quot;)}','${n.ports.replace(/'/g,&quot;\'&quot;)}','${n.sev}')&quot;
+      onmouseout=&quot;hideTip()&quot;>`;
+
+    // Pulse for owned
+    if (isOwned) {
+      html += `<circle r=&quot;14&quot; fill=&quot;${color}&quot; opacity=&quot;0.1&quot; style=&quot;animation:glowPulse 2s infinite&quot;/>`;
+    }
+
+    html += nodeIcon(n.type, color, 10);
+    html += `<text x=&quot;0&quot; y=&quot;15&quot; font-size=&quot;5&quot; fill=&quot;${color}&quot; text-anchor=&quot;middle&quot; font-family=&quot;IBM Plex Mono&quot; font-weight=&quot;500&quot; opacity=&quot;0.9&quot;>${n.name.length > 14 ? n.name.slice(0,12) + '..' : n.name}</text>`;
+    html += `<text x=&quot;0&quot; y=&quot;20&quot; font-size=&quot;4&quot; fill=&quot;#555&quot; text-anchor=&quot;middle&quot; font-family=&quot;IBM Plex Mono&quot;>${n.ip}</text>`;
+
+    if (n.tags && n.tags.includes(&quot;creds&quot;)) {
+      html += `<text x=&quot;8&quot; y=&quot;-6&quot; font-size=&quot;6&quot; fill=&quot;#d29922&quot;>🔑</text>`;
+    }
+    html += `</g>`;
+  }
+
+  svg.innerHTML = html;
+  // Fit view roughly?
+  updateViewBox();
+}
+
+// ═══════════════ INTERACTION ═══════════════
+function showTip(e, ip, name, ports, sev) {
+  const tt = document.getElementById(&quot;tooltip&quot;);
+  document.getElementById(&quot;tt-title&quot;).textContent = `${name} — ${ip}`;
+  document.getElementById(&quot;tt-service&quot;).textContent = ports;
+  const tag = document.getElementById(&quot;tt-tag&quot;);
+  tag.textContent = sev.toUpperCase();
+  tag.className = `tooltip-tag ${sev}`;
+  tt.style.opacity = 1;
+  tt.style.left = (e.clientX + 16) + &quot;px&quot;;
+  tt.style.top = (e.clientY - 10) + &quot;px&quot;;
+}
+function hideTip() { document.getElementById(&quot;tooltip&quot;).style.opacity = 0; }
+
+// Pan
+container.addEventListener(&quot;mousedown&quot;, e => {
+  isDragging = true; container.classList.add(&quot;dragging&quot;);
+  dragStart = {x:e.clientX, y:e.clientY};
+  viewStart = {x:viewBox.x, y:viewBox.y};
+});
+window.addEventListener(&quot;mousemove&quot;, e => {
+  if (!isDragging) return;
+  const scale = viewBox.w / container.clientWidth;
+  viewBox.x = viewStart.x - (e.clientX - dragStart.x) * scale;
+  viewBox.y = viewStart.y - (e.clientY - dragStart.y) * scale;
+  updateViewBox();
+});
+window.addEventListener(&quot;mouseup&quot;, () => { isDragging = false; container.classList.remove(&quot;dragging&quot;); });
+
+// Zoom
+container.addEventListener(&quot;wheel&quot;, e => {
+  e.preventDefault();
+  const factor = e.deltaY > 0 ? 1.08 : 0.93;
+  const rect = container.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width;
+  const my = (e.clientY - rect.top) / rect.height;
+  const nw = viewBox.w * factor, nh = viewBox.h * factor;
+  viewBox.x += (viewBox.w - nw) * mx;
+  viewBox.y += (viewBox.h - nh) * my;
+  viewBox.w = nw; viewBox.h = nh;
+  updateViewBox();
+}, {passive:false});
+
+document.getElementById(&quot;zoom-in&quot;).onclick = () => {
+  const cx = viewBox.x+viewBox.w/2, cy = viewBox.y+viewBox.h/2;
+  viewBox.w *= 0.8; viewBox.h *= 0.8;
+  viewBox.x = cx-viewBox.w/2; viewBox.y = cy-viewBox.h/2;
+  updateViewBox();
+};
+document.getElementById(&quot;zoom-out&quot;).onclick = () => {
+  const cx = viewBox.x+viewBox.w/2, cy = viewBox.y+viewBox.h/2;
+  viewBox.w *= 1.25; viewBox.h *= 1.25;
+  viewBox.x = cx-viewBox.w/2; viewBox.y = cy-viewBox.h/2;
+  updateViewBox();
+};
+document.getElementById(&quot;zoom-fit&quot;).onclick = () => {
+  viewBox = {x:-50, y:-20, w:2200, h:1900};
+  updateViewBox();
+};
+
+// ═══════════════ FILTERS ═══════════════
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const f = btn.dataset.filter;
+    document.querySelectorAll('.node-group').forEach(g => {
+      const tags = g.dataset.tags || '';
+      const os = g.dataset.os || '';
+      const zone = g.dataset.zone || '';
+      let show = true;
+      if (f === &quot;dc&quot;) show = tags.includes(&quot;dc&quot;);
+      else if (f === &quot;db&quot;) show = tags.includes(&quot;db&quot;);
+      else if (f === &quot;windows&quot;) show = os === &quot;windows&quot;;
+      else if (f === &quot;linux&quot;) show = os === &quot;linux&quot;;
+      else if (f === &quot;webapp&quot;) show = tags.includes(&quot;webapp&quot;);
+      else if (f === &quot;owned&quot;) show = tags.includes(&quot;owned&quot;);
+      else if (f === &quot;creds&quot;) show = tags.includes(&quot;creds&quot;);
+      g.classList.toggle(&quot;dimmed&quot;, !show);
+    });
+  });
+});
+
+// Search
+document.getElementById(&quot;search&quot;).addEventListener(&quot;input&quot;, e => {
+  const q = e.target.value.toLowerCase();
+  if (!q) {
+    document.querySelectorAll('.node-group').forEach(g => g.classList.remove('dimmed'));
+    return;
+  }
+  document.querySelectorAll('.node-group').forEach(g => {
+    const match = (g.dataset.ip + g.dataset.name + g.dataset.tags).toLowerCase().includes(q);
+    g.classList.toggle(&quot;dimmed&quot;, !match);
+  });
+});
+
+render();
+</script>
+</body>
+</html>" style="width: 100%; height: 100%; border: none; flex: 1; background: #07090d;"></iframe>
+            </div>
+            <div class="footer-note">
+  Infrastructure Assessment v6 — Generated 2026-02-18 19:29 UTC — 4 hosts compromised, compromised infrastructure mapped
+</div>
+
+<!-- Modal for Download Confirmation -->
+<div class="modal-overlay" id="downloadModal">
+  <div class="modal">
+    <h3 id="modalTitle">Download Report</h3>
+    <p id="modalDesc">Do you want to include the interactive Attack Map in the downloaded report?</p>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="confirmDownload(true)">Yes, Include Map</button>
+      <button class="btn btn-secondary" onclick="confirmDownload(false)">No, Report Only</button>
+    </div>
+    <div style="margin-top: 16px;">
+        <button class="btn" style="background:transparent; border:none; color: #58a6ff; font-size: 11px;" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let promptType = 'html';
+
+function showDownloadModal(type) {
+    promptType = type || 'html';
+    const title = document.getElementById('modalTitle');
+    const desc = document.getElementById('modalDesc');
+    const container = document.getElementById('downloadModal');
+    
+    if (promptType === 'pdf') {
+        title.innerText = "Save as PDF";
+        desc.innerText = "Do you want to include the Attack Map pages in the PDF?";
+    } else {
+        title.innerText = "Download Report";
+        desc.innerText = "Do you want to include the interactive Attack Map in the file?";
+    }
+    container.style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('downloadModal').style.display = 'none';
+}
+
+function confirmDownload(includeMap) {
+    const mapParam = includeMap ? '1' : '0';
+    if (promptType === 'pdf') {
+        // Open view_report in new tab for printing
+        window.open('/view_report?include_map=' + mapParam, '_blank');
+    } else {
+        // Trigger download
+        window.location.href = '/download_report?include_map=' + mapParam;
+    }
+    closeModal();
+}
+
+// Legacy function support if cached
+function downloadReport(includeMap) {
+    confirmDownload(includeMap);
+}
+</script>
+</body>
+</html>
